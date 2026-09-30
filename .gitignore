@@ -1,0 +1,63 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+.env
+
+# Temporary files
+*.tmp
+*.bak
+.*.swp
+temp/
+
+# Compiled C/C++/Rust binaries
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+target/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project-specific
+*.code-workspace
+.claude/

@@ -1,0 +1,8 @@
+{
+  "fontFamily": "Champignon",
+  "fontSize": 28,
+  "fontFeatures": ["ccmp", "liga"],
+  "theme": "dark",
+  "tabWidth": 4,
+  "lineHeight": 1.6
+}

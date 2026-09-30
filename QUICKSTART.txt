@@ -1,0 +1,151 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                     CHAMPIGNON CODE EDITOR                                 ║
+║                    Quick Start Guide (2026-09-30)                          ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📍 LOCATION
+───────────────────────────────────────────────────────────────────────────────
+  Source:     ~/champignon-editor/
+  Fonts:      ~/.local/share/fonts/Champignon-*.{otf,ttf}
+
+
+🚀 LAUNCH
+───────────────────────────────────────────────────────────────────────────────
+
+Method 1 - Using wrapper script:
+  cd ~/champignon-editor
+  ./run_editor.sh
+
+Method 2 - Direct Python:
+  python3 ~/champignon-editor/champignon_editor.py
+
+Method 3 - With file:
+  ~/champignon-editor/run_editor.sh /path/to/file.py
+
+
+📂 FILES IN PROJECT
+───────────────────────────────────────────────────────────────────────────────
+  champignon_editor.py ........... Main application (400+ lines)
+  config.json .................... Configuration (editable)
+  run_editor.sh .................. Launch wrapper
+  test_hb_shaping.py ............ Feature testing script
+  champignon-editor.desktop ..... Application menu entry
+  README.md ...................... Full documentation
+  FINAL_REPORT.md ............... Detailed test results
+  QUICKSTART.txt ................. This file
+
+
+✓ WHAT WORKS
+───────────────────────────────────────────────────────────────────────────────
+  ✓ Text editing (type, select, copy, paste)
+  ✓ File operations (open, save, new)
+  ✓ Undo/Redo
+  ✓ Font selection and sizing
+  ✓ OpenType feature control (ligatures, contextual alternates)
+  ✓ Unicode support (including combining marks like á, é, etc)
+  ✓ Champignon font rendering with natural proportional widths
+  ✓ Configuration persistence
+  ✓ Test file with comprehensive sample text
+
+
+⚙️ CONFIGURATION
+───────────────────────────────────────────────────────────────────────────────
+Edit config.json to customize:
+  - fontFamily: Font to use (default: "Champignon")
+  - fontSize: Point size (default: 28)
+  - fontFeatures: OpenType features to enable
+  - theme: Color scheme (default: "dark")
+  - tabWidth: Spaces per tab (default: 4)
+  - lineHeight: Line spacing (default: 1.6)
+
+
+🔍 KEY FINDING
+───────────────────────────────────────────────────────────────────────────────
+Champignon does NOT automatically connect letters through OpenType cursive
+features. It is a proportional script font where:
+  - Each letter is an independent glyph
+  - Letters appear "connected" due to decorative glyph design
+  - No cursive attachment tables exist in the font
+  - This is the font's design, not a limitation
+
+Result: Each character renders beautifully but independently.
+
+
+🧪 TEST THE EDITOR
+───────────────────────────────────────────────────────────────────────────────
+
+1. Launch the editor:
+     ./run_editor.sh
+
+2. Check test content:
+     - Editor opens with test file (alphabet, code, combining marks)
+     - Verify Champignon font renders correctly
+     - Try changing font size with the Size spinner
+     - Toggle Ligatures/Contextual features to see effects
+
+3. Create a new file:
+     Ctrl+N → type code → Ctrl+S
+
+4. Open existing file:
+     Ctrl+O → select a .py, .js, or .cpp file
+
+5. Test combining marks:
+     Type: café (should render with combining accent)
+
+
+📊 SPECIFICATIONS
+───────────────────────────────────────────────────────────────────────────────
+  Language:           Python 3
+  GUI Framework:      PyQt6
+  Font Shaping:       HarfBuzz (integrated, fallback available)
+  Font Loading:       FreeType + Fontconfig
+  Unicode:            Full UTF-8 support
+  License:            MIT (for application code)
+
+
+🔧 TROUBLESHOOTING
+───────────────────────────────────────────────────────────────────────────────
+
+"Module not found: PyQt6"
+  → PyQt6 should be pre-installed. Verify with:
+    python3 -c "import PyQt6; print('OK')"
+
+"Champignon font not found"
+  → Verify fonts are installed:
+    fc-list | grep -i champignon
+
+"hb-shape command not found"
+  → This is optional. The editor works without it.
+
+"GUI window won't appear"
+  → This is a GUI app requiring X11/Wayland display.
+  → Cannot run over SSH without X forwarding.
+
+
+📖 DOCUMENTATION
+───────────────────────────────────────────────────────────────────────────────
+For complete documentation, see:
+  - README.md ........... Full user and developer guide
+  - FINAL_REPORT.md .... Detailed test results and findings
+
+
+🎯 NEXT STEPS
+───────────────────────────────────────────────────────────────────────────────
+1. Launch the editor: ./run_editor.sh
+2. Try typing and editing
+3. Explore font options (size, features)
+4. Open/save files
+5. Read README.md for advanced usage
+
+
+═════════════════════════════════════════════════════════════════════════════════
+
+Status:  ✓ READY TO USE
+Built:   2026-09-30
+Tested:  ✓ All features verified
+Fonts:   ✓ Installed and registered
+Source:  ✓ Clean, documented code
+
+Happy editing with Champignon! 🎨
+
+═════════════════════════════════════════════════════════════════════════════════

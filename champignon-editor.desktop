@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Champignon Editor
+Comment=Code editor with OpenType shaping for Champignon font
+Exec=/home/thezipster3000/champignon-editor/run_editor.sh %F
+Icon=text-editor
+Terminal=false
+Categories=Development;TextEditor;
+MimeType=text/plain;text/x-c++;text/x-python;text/x-java;
+Keywords=editor;code;champignon;
