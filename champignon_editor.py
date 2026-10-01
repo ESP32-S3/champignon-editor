@@ -709,7 +709,7 @@ function test() {
                 ['python3', temp_file],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=30
             )
 
             output = result.stdout
@@ -721,7 +721,7 @@ function test() {
 
             os.unlink(temp_file)
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Code execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Code execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 
@@ -736,7 +736,7 @@ function test() {
                 ['node', temp_file],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=30
             )
 
             output = result.stdout
@@ -750,7 +750,7 @@ function test() {
         except FileNotFoundError:
             self.output_panel.setPlainText("Error: Node.js not found. Install with: sudo apt install nodejs\n")
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Code execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Code execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 
@@ -767,7 +767,7 @@ function test() {
                 self.statusBar().showMessage("Compilation failed")
                 os.unlink(src_file)
                 return
-            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=5)
+            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("C++ execution complete")
@@ -777,7 +777,7 @@ function test() {
         except FileNotFoundError:
             self.output_panel.setPlainText("Error: g++ not found. Install: sudo apt install g++\n")
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 
@@ -793,7 +793,7 @@ function test() {
                 self.output_panel.setPlainText(f"Compilation Error:\n{compile_result.stderr}\n")
                 os.unlink(src_file)
                 return
-            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=5)
+            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("C execution complete")
@@ -803,7 +803,7 @@ function test() {
         except FileNotFoundError:
             self.output_panel.setPlainText("Error: gcc not found. Install: sudo apt install build-essential\n")
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 
@@ -819,7 +819,7 @@ function test() {
                 self.output_panel.setPlainText(f"Compilation Error:\n{compile_result.stderr}\n")
                 os.unlink(src_file)
                 return
-            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=5)
+            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Rust execution complete")
@@ -829,7 +829,7 @@ function test() {
         except FileNotFoundError:
             self.output_panel.setPlainText("Error: rustc not found. Install from: https://www.rust-lang.org/\n")
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 
@@ -839,7 +839,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.lua', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
-            result = subprocess.run(['lua', temp_file], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(['lua', temp_file], capture_output=True, text=True, timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Lua execution complete")
@@ -847,7 +847,7 @@ function test() {
         except FileNotFoundError:
             self.output_panel.setPlainText("Error: lua not found. Install: sudo apt install lua5.3\n")
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 
@@ -875,7 +875,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.rb', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
-            result = subprocess.run(['ruby', temp_file], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(['ruby', temp_file], capture_output=True, text=True, timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Ruby execution complete")
@@ -883,7 +883,7 @@ function test() {
         except FileNotFoundError:
             self.output_panel.setPlainText("Error: ruby not found. Install: sudo apt install ruby\n")
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 
@@ -893,7 +893,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.php', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
-            result = subprocess.run(['php', temp_file], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(['php', temp_file], capture_output=True, text=True, timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("PHP execution complete")
@@ -901,7 +901,7 @@ function test() {
         except FileNotFoundError:
             self.output_panel.setPlainText("Error: php not found. Install: sudo apt install php-cli\n")
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 
@@ -912,13 +912,13 @@ function test() {
                 f.write(code)
                 temp_file = f.name
             os.chmod(temp_file, 0o755)
-            result = subprocess.run(['bash', temp_file], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(['bash', temp_file], capture_output=True, text=True, timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Bash execution complete")
             os.unlink(temp_file)
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (5s limit)\n")
+            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
         except Exception as e:
             self.output_panel.setPlainText(f"Error: {str(e)}\n")
 

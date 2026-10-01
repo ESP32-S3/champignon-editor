@@ -16,7 +16,7 @@ A modern, lightweight code editor with **syntax highlighting** and **multi-langu
 ▶️ **Multi-Language Execution**
 - Python 3, JavaScript (Node.js), C/C++, Rust, Lua, Go, Ruby, PHP, Bash, Swift, TypeScript
 - Auto-language detection from file extension
-- 5-second execution timeout for safety
+- 30-second execution timeout for safety
 - Real-time output in integrated terminal panel
 
 🎨 **Beautiful Typography**
@@ -225,7 +225,7 @@ champignon-editor/
 
 ## Known Limitations
 
-1. **5-second execution timeout** - Prevents infinite loops
+1. **30-second execution timeout** - Prevents infinite loops
 2. **No interactive input** - Code can't read from stdin
 3. **Limited IDE features** - No debugging, autocomplete, or refactoring
 4. **Java/Kotlin** - Require special build setup (contributions welcome!)
@@ -241,7 +241,7 @@ pip install PyQt6
 - Install the language/runtime as shown in the Requirements section
 
 **"Error: Code execution timed out"**
-- Your code took longer than 5 seconds
+- Your code took longer than 30 seconds
 - Check for infinite loops or expensive operations
 
 **"No output"**
