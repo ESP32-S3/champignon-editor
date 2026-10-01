@@ -16,7 +16,8 @@ A modern, lightweight code editor with **syntax highlighting** and **multi-langu
 ▶️ **Multi-Language Execution**
 - Python 3, JavaScript (Node.js), C/C++, Rust, Lua, Go, Ruby, PHP, Bash, Swift, TypeScript
 - Auto-language detection from file extension
-- 30-second execution timeout for safety
+- Interactive input: type into the stdin box while the program runs (`input()`, `scanf`, etc.)
+- Stop button to halt a running or runaway program
 - Real-time output in integrated terminal panel
 
 🎨 **Beautiful Typography**
@@ -225,10 +226,9 @@ champignon-editor/
 
 ## Known Limitations
 
-1. **30-second execution timeout** - Prevents infinite loops
-2. **No interactive input** - Code can't read from stdin
-3. **Limited IDE features** - No debugging, autocomplete, or refactoring
-4. **Java/Kotlin** - Require special build setup (contributions welcome!)
+1. **No auto-timeout** - Use the Stop button to halt infinite loops or runaway programs
+2. **Limited IDE features** - No debugging, autocomplete, or refactoring
+3. **Java/Kotlin** - Require special build setup (contributions welcome!)
 
 ## Troubleshooting
 
@@ -240,9 +240,9 @@ pip install PyQt6
 **"Error: [Language] not found"**
 - Install the language/runtime as shown in the Requirements section
 
-**"Error: Code execution timed out"**
-- Your code took longer than 30 seconds
-- Check for infinite loops or expensive operations
+**Program seems stuck / waiting**
+- It's probably waiting for input — type into the stdin box and press Enter
+- Click Stop to halt a program that's in an infinite loop
 
 **"No output"**
 - Code ran but produced no output

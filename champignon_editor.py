@@ -19,9 +19,9 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTextEdit, QPlainTextEdit, QLabel, QFileDialog, QMenu, QMenuBar,
     QStatusBar, QPushButton, QScrollArea, QComboBox, QSpinBox, QCheckBox,
-    QSplitter, QDialog, QMessageBox
+    QSplitter, QDialog, QMessageBox, QLineEdit
 )
-from PyQt6.QtCore import Qt, QSize, QRect, QPoint, QTimer, pyqtSignal, QRegularExpression
+from PyQt6.QtCore import Qt, QSize, QRect, QPoint, QTimer, pyqtSignal, QRegularExpression, QProcess
 from PyQt6.QtGui import (
     QPainter, QFont, QFontInfo, QColor, QPen, QBrush, QPixmap,
     QTextCursor, QKeySequence, QIcon, QAction, QTextDocument,
@@ -315,6 +315,8 @@ class ChamignionEditor(QMainWindow):
         self.config = self._load_config()
         self.current_file = None
         self.unsaved = False
+        self.process = None
+        self._temp_paths = []
 
         self._setup_ui()
         self._setup_menu()
@@ -382,6 +384,13 @@ class ChamignionEditor(QMainWindow):
         run_button.clicked.connect(self._run_code)
         toolbar_layout.addWidget(run_button)
 
+        # Stop button
+        self.stop_button = QPushButton("■ Stop")
+        self.stop_button.setStyleSheet("QPushButton { background-color: #c0392b; color: white; padding: 5px; border-radius: 3px; font-weight: bold; } QPushButton:disabled { background-color: #555; }")
+        self.stop_button.clicked.connect(self._stop_code)
+        self.stop_button.setEnabled(False)
+        toolbar_layout.addWidget(self.stop_button)
+
         toolbar_layout.addStretch()
 
         layout.addLayout(toolbar_layout)
@@ -394,19 +403,21 @@ class ChamignionEditor(QMainWindow):
         self.editor.textChanged.connect(self._on_text_changed)
         splitter.addWidget(self.editor)
 
-        # Program input (stdin) panel
-        self.input_panel = QPlainTextEdit()
-        self.input_panel.setMaximumHeight(80)
-        self.input_panel.setPlaceholderText("Program input (stdin) — one line per input() call")
-        self.input_panel.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                font-family: Courier;
-                font-size: 10pt;
-            }
-        """)
-        splitter.addWidget(self.input_panel)
+        # Interactive input (stdin) row
+        input_row = QWidget()
+        input_row_layout = QHBoxLayout(input_row)
+        input_row_layout.setContentsMargins(0, 0, 0, 0)
+        input_row_layout.addWidget(QLabel("stdin ▸"))
+        self.input_line = QLineEdit()
+        self.input_line.setPlaceholderText("Type input here and press Enter while the program is running")
+        self.input_line.setStyleSheet("QLineEdit { background-color: #1e1e1e; color: #d4d4d4; font-family: Courier; font-size: 10pt; padding: 4px; }")
+        self.input_line.returnPressed.connect(self._send_input)
+        self.input_line.setEnabled(False)
+        input_row_layout.addWidget(self.input_line)
+        send_button = QPushButton("Send")
+        send_button.clicked.connect(self._send_input)
+        input_row_layout.addWidget(send_button)
+        splitter.addWidget(input_row)
 
         # Output panel
         self.output_panel = QPlainTextEdit()
@@ -424,7 +435,7 @@ class ChamignionEditor(QMainWindow):
         splitter.addWidget(self.output_panel)
 
         splitter.setStretchFactor(0, 4)
-        splitter.setStretchFactor(1, 1)
+        splitter.setStretchFactor(1, 0)
         splitter.setStretchFactor(2, 2)
 
         layout.addWidget(splitter)
@@ -676,312 +687,169 @@ function test() {
 
         return 'python'  # Default to Python
 
+    LANG_CONFIG = {
+        'python':     {'suffix': '.py',    'cmd': lambda f: ('python3', [f])},
+        'javascript': {'suffix': '.js',    'cmd': lambda f: ('node', [f])},
+        'typescript': {'suffix': '.ts',    'cmd': lambda f: ('npx', ['ts-node', f])},
+        'lua':        {'suffix': '.lua',   'cmd': lambda f: ('lua', [f])},
+        'go':         {'suffix': '.go',    'cmd': lambda f: ('go', ['run', f])},
+        'ruby':       {'suffix': '.rb',    'cmd': lambda f: ('ruby', [f])},
+        'php':        {'suffix': '.php',   'cmd': lambda f: ('php', [f])},
+        'bash':       {'suffix': '.sh',    'cmd': lambda f: ('bash', [f])},
+        'swift':      {'suffix': '.swift', 'cmd': lambda f: ('swift', [f])},
+    }
+
+    COMPILE_CONFIG = {
+        'cpp':  {'suffix': '.cpp', 'compiler': lambda src, exe: ['g++', src, '-o', exe]},
+        'c':    {'suffix': '.c',   'compiler': lambda src, exe: ['gcc', src, '-o', exe]},
+        'rust': {'suffix': '.rs',  'compiler': lambda src, exe: ['rustc', src, '-o', exe]},
+    }
+
     def _run_code(self):
-        """Execute the code in the editor."""
+        """Execute the code in the editor interactively."""
+        if self.process is not None:
+            self.output_panel.appendPlainText("\n[A program is already running - press Stop first]")
+            return
+
         code = self.editor.toPlainText()
         if not code.strip():
             self.output_panel.setPlainText("Error: No code to run\n")
             return
 
         language = self._detect_language()
-        self.statusBar().showMessage(f"Running {language} code...")
 
-        try:
-            language_runners = {
-                'python': self._run_python,
-                'javascript': self._run_javascript,
-                'typescript': self._run_typescript,
-                'cpp': self._run_cpp,
-                'c': self._run_c,
-                'rust': self._run_rust,
-                'lua': self._run_lua,
-                'go': self._run_go,
-                'ruby': self._run_ruby,
-                'php': self._run_php,
-                'bash': self._run_bash,
-                'java': self._run_java,
-                'swift': self._run_swift,
-                'kotlin': self._run_kotlin,
-            }
+        if language in ('java', 'kotlin'):
+            self.output_panel.setPlainText(
+                f"Error: {language.title()} needs a full JVM build setup and isn't supported in quick-run mode.\n")
+            return
 
-            if language in language_runners:
-                language_runners[language](code)
-            else:
-                self.output_panel.setPlainText(f"Error: Language '{language}' not supported yet\n")
-                self.statusBar().showMessage(f"Language not supported: {language}")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
-            self.statusBar().showMessage(f"Execution failed: {e}")
-
-    def _run_python(self, code: str):
-        """Run Python code."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-
-            result = subprocess.run(
-                ['python3', temp_file],
-                capture_output=True,
-                text=True,
-                input=self.input_panel.toPlainText(),
-                timeout=30
-            )
-
-            output = result.stdout
-            if result.stderr:
-                output += f"\n[STDERR]\n{result.stderr}"
-
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("Python execution complete")
-
-            os.unlink(temp_file)
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Code execution timed out (30s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
-
-    def _run_javascript(self, code: str):
-        """Run JavaScript code."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-
-            result = subprocess.run(
-                ['node', temp_file],
-                capture_output=True,
-                text=True,
-                input=self.input_panel.toPlainText(),
-                timeout=30
-            )
-
-            output = result.stdout
-            if result.stderr:
-                output += f"\n[STDERR]\n{result.stderr}"
-
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("JavaScript execution complete")
-
-            os.unlink(temp_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: Node.js not found. Install with: sudo apt install nodejs\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Code execution timed out (30s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
-
-    def _run_cpp(self, code: str):
-        """Run C/C++ code."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.cpp', delete=False) as f:
-                f.write(code)
-                src_file = f.name
-            exe_file = src_file.replace('.cpp', '')
-            compile_result = subprocess.run(['g++', src_file, '-o', exe_file], capture_output=True, text=True, timeout=10)
-            if compile_result.returncode != 0:
-                self.output_panel.setPlainText(f"Compilation Error:\n{compile_result.stderr}\n")
-                self.statusBar().showMessage("Compilation failed")
-                os.unlink(src_file)
+        if language in self.COMPILE_CONFIG:
+            program, args = self._compile(language, code)
+            if program is None:
                 return
-            result = subprocess.run([exe_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("C++ execution complete")
-            os.unlink(src_file)
-            if os.path.exists(exe_file):
-                os.unlink(exe_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: g++ not found. Install: sudo apt install g++\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
-
-    def _run_c(self, code: str):
-        """Run C code."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
-                f.write(code)
-                src_file = f.name
-            exe_file = src_file.replace('.c', '')
-            compile_result = subprocess.run(['gcc', src_file, '-o', exe_file], capture_output=True, text=True, timeout=10)
-            if compile_result.returncode != 0:
-                self.output_panel.setPlainText(f"Compilation Error:\n{compile_result.stderr}\n")
-                os.unlink(src_file)
+        elif language in self.LANG_CONFIG:
+            cfg = self.LANG_CONFIG[language]
+            try:
+                path = self._write_temp(code, cfg['suffix'])
+            except Exception as e:
+                self.output_panel.setPlainText(f"Error: {e}\n")
                 return
-            result = subprocess.run([exe_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("C execution complete")
-            os.unlink(src_file)
-            if os.path.exists(exe_file):
-                os.unlink(exe_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: gcc not found. Install: sudo apt install build-essential\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
+            program, args = cfg['cmd'](path)
+        else:
+            self.output_panel.setPlainText(f"Error: Language '{language}' not supported yet\n")
+            return
 
-    def _run_rust(self, code: str):
-        """Run Rust code."""
+        self._start_process(program, args, language)
+
+    def _write_temp(self, code: str, suffix: str) -> str:
+        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as f:
+            f.write(code)
+            path = f.name
+        self._temp_paths.append(path)
+        return path
+
+    def _compile(self, language: str, code: str):
+        """Compile source; return (exe, []) to run, or (None, None) on failure."""
+        cfg = self.COMPILE_CONFIG[language]
         try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.rs', delete=False) as f:
-                f.write(code)
-                src_file = f.name
-            exe_file = src_file.replace('.rs', '')
-            compile_result = subprocess.run(['rustc', src_file, '-o', exe_file], capture_output=True, text=True, timeout=15)
-            if compile_result.returncode != 0:
-                self.output_panel.setPlainText(f"Compilation Error:\n{compile_result.stderr}\n")
-                os.unlink(src_file)
-                return
-            result = subprocess.run([exe_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("Rust execution complete")
-            os.unlink(src_file)
-            if os.path.exists(exe_file):
-                os.unlink(exe_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: rustc not found. Install from: https://www.rust-lang.org/\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
+            src = self._write_temp(code, cfg['suffix'])
         except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
-
-    def _run_lua(self, code: str):
-        """Run Lua code."""
+            self.output_panel.setPlainText(f"Error: {e}\n")
+            return None, None
+        exe = src[: -len(cfg['suffix'])]
+        self._temp_paths.append(exe)
+        self.output_panel.setPlainText(f"Compiling {language}...\n")
+        self.statusBar().showMessage(f"Compiling {language}...")
+        QApplication.processEvents()
+        compiler_cmd = cfg['compiler'](src, exe)
         try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.lua', delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-            result = subprocess.run(['lua', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("Lua execution complete")
-            os.unlink(temp_file)
+            result = subprocess.run(compiler_cmd, capture_output=True, text=True, timeout=60)
         except FileNotFoundError:
-            self.output_panel.setPlainText("Error: lua not found. Install: sudo apt install lua5.3\n")
+            self.output_panel.setPlainText(f"Error: '{compiler_cmd[0]}' not found. Install the {language} toolchain.\n")
+            self._cleanup_temps()
+            return None, None
         except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
+            self.output_panel.setPlainText("Error: Compilation timed out (60s limit)\n")
+            self._cleanup_temps()
+            return None, None
+        if result.returncode != 0:
+            self.output_panel.setPlainText(f"Compilation Error:\n{result.stderr}\n")
+            self.statusBar().showMessage("Compilation failed")
+            self._cleanup_temps()
+            return None, None
+        return exe, []
 
-    def _run_go(self, code: str):
-        """Run Go code."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.go', delete=False) as f:
-                f.write(code)
-                src_file = f.name
-            result = subprocess.run(['go', 'run', src_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("Go execution complete")
-            os.unlink(src_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: go not found. Install from: https://golang.org/\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (10s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
+    def _start_process(self, program: str, args, language: str):
+        self.output_panel.setPlainText("")
+        self.statusBar().showMessage(f"Running {language}...")
+        self.process = QProcess(self)
+        self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        self.process.readyReadStandardOutput.connect(self._on_process_output)
+        self.process.finished.connect(self._on_process_finished)
+        self.process.errorOccurred.connect(self._on_process_error)
+        self.input_line.setEnabled(True)
+        self.stop_button.setEnabled(True)
+        self.input_line.setFocus()
+        self.process.start(program, args)
 
-    def _run_ruby(self, code: str):
-        """Run Ruby code."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.rb', delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-            result = subprocess.run(['ruby', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("Ruby execution complete")
-            os.unlink(temp_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: ruby not found. Install: sudo apt install ruby\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
+    def _on_process_output(self):
+        if self.process is None:
+            return
+        data = bytes(self.process.readAllStandardOutput()).decode(errors='replace')
+        if data:
+            self.output_panel.moveCursor(QTextCursor.MoveOperation.End)
+            self.output_panel.insertPlainText(data)
+            self.output_panel.moveCursor(QTextCursor.MoveOperation.End)
 
-    def _run_php(self, code: str):
-        """Run PHP code."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.php', delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-            result = subprocess.run(['php', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("PHP execution complete")
-            os.unlink(temp_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: php not found. Install: sudo apt install php-cli\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
+    def _send_input(self):
+        if self.process is None or self.process.state() != QProcess.ProcessState.Running:
+            return
+        line = self.input_line.text()
+        self.process.write((line + "\n").encode())
+        self.output_panel.moveCursor(QTextCursor.MoveOperation.End)
+        self.output_panel.insertPlainText(line + "\n")
+        self.output_panel.moveCursor(QTextCursor.MoveOperation.End)
+        self.input_line.clear()
 
-    def _run_bash(self, code: str):
-        """Run Bash script."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-            os.chmod(temp_file, 0o755)
-            result = subprocess.run(['bash', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("Bash execution complete")
-            os.unlink(temp_file)
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (30s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
+    def _on_process_error(self, err):
+        if self.process is None:
+            return
+        if err == QProcess.ProcessError.FailedToStart:
+            self.output_panel.appendPlainText(
+                "\n[Failed to start - is the interpreter/runtime installed and on your PATH?]")
+            self._finish_run("failed to start")
 
-    def _run_java(self, code: str):
-        """Run Java code."""
-        self.output_panel.setPlainText("Error: Java requires class compilation setup. Not supported in quick mode.\n")
+    def _on_process_finished(self, exit_code, _status):
+        if self.process is None:
+            return
+        self._on_process_output()
+        self.output_panel.moveCursor(QTextCursor.MoveOperation.End)
+        self.output_panel.insertPlainText(f"\n[Process finished with exit code {exit_code}]\n")
+        self._finish_run(f"finished (exit {exit_code})")
 
-    def _run_swift(self, code: str):
-        """Run Swift code."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.swift', delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-            result = subprocess.run(['swift', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("Swift execution complete")
-            os.unlink(temp_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: swift not found. Install from: https://swift.org/\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (10s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
+    def _stop_code(self):
+        if self.process is not None:
+            self.process.kill()
+            self.output_panel.appendPlainText("\n[Stopped by user]")
+            self._finish_run("stopped")
 
-    def _run_kotlin(self, code: str):
-        """Run Kotlin code."""
-        self.output_panel.setPlainText("Error: Kotlin requires JVM setup. Not supported in quick mode.\n")
+    def _finish_run(self, status_msg: str):
+        self.statusBar().showMessage(f"Program {status_msg}")
+        self.input_line.setEnabled(False)
+        self.stop_button.setEnabled(False)
+        self.process = None
+        self._cleanup_temps()
 
-    def _run_typescript(self, code: str):
-        """Run TypeScript code (via Node.js)."""
-        try:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.ts', delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-            result = subprocess.run(['npx', 'ts-node', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
-            output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
-            self.output_panel.setPlainText(output if output else "(No output)\n")
-            self.statusBar().showMessage("TypeScript execution complete")
-            os.unlink(temp_file)
-        except FileNotFoundError:
-            self.output_panel.setPlainText("Error: ts-node not found. Install: npm install -g ts-node\n")
-        except subprocess.TimeoutExpired:
-            self.output_panel.setPlainText("Error: Execution timed out (10s limit)\n")
-        except Exception as e:
-            self.output_panel.setPlainText(f"Error: {str(e)}\n")
+    def _cleanup_temps(self):
+        for p in self._temp_paths:
+            try:
+                if os.path.exists(p):
+                    os.unlink(p)
+            except OSError:
+                pass
+        self._temp_paths = []
+
+
 
 
 def main():
