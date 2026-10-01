@@ -36,102 +36,123 @@ class SyntaxHighlighter(QSyntaxHighlighter):
         super().__init__(document)
         self.setup_rules()
 
+    # Control-flow / structural keywords (blue)
+    KEYWORDS = {
+        "def", "return", "if", "elif", "else", "for", "while", "break",
+        "continue", "pass", "class", "import", "from", "as", "try",
+        "except", "finally", "with", "yield", "lambda", "global",
+        "nonlocal", "raise", "assert", "del", "in", "is", "and", "or",
+        "not", "async", "await",
+        "function", "const", "let", "var", "static", "public", "private",
+        "protected", "void", "new", "switch", "case", "do", "struct", "enum",
+    }
+    # Literals / constants (teal)
+    CONSTANTS = {"True", "False", "None", "self", "cls", "true", "false", "null", "nil", "undefined"}
+    # Common builtins (soft blue)
+    BUILTINS = {
+        "print", "input", "int", "str", "float", "bool", "list", "dict",
+        "set", "tuple", "len", "range", "enumerate", "zip", "map", "filter",
+        "sum", "min", "max", "abs", "round", "sorted", "reversed", "open",
+        "type", "isinstance", "super", "format",
+    }
+
     def setup_rules(self):
-        """Setup syntax highlighting rules."""
-        # Keywords
-        keyword_format = QTextCharFormat()
-        keyword_format.setForeground(QColor("#569CD6"))  # Blue
-        keyword_format.setFontWeight(700)
+        """Create reusable character formats."""
+        def fmt(color, bold=False, italic=False):
+            f = QTextCharFormat()
+            f.setForeground(QColor(color))
+            if bold:
+                f.setFontWeight(700)
+            if italic:
+                f.setFontItalic(True)
+            return f
 
-        keywords = [
-            "\\bfunction\\b", "\\breturn\\b", "\\bif\\b", "\\belse\\b",
-            "\\bfor\\b", "\\bwhile\\b", "\\bclass\\b", "\\bdef\\b",
-            "\\bimport\\b", "\\bfrom\\b", "\\bas\\b", "\\btry\\b",
-            "\\bexcept\\b", "\\bfinally\\b", "\\bwith\\b", "\\byield\\b",
-            "\\blambda\\b", "\\btrue\\b", "\\bfalse\\b", "\\bTrue\\b",
-            "\\bFalse\\b", "\\bNone\\b", "\\bself\\b", "\\bcls\\b",
-            "\\bconst\\b", "\\blet\\b", "\\bvar\\b", "\\bint\\b",
-            "\\bchar\\b", "\\bvoid\\b", "\\bstatic\\b", "\\bpublic\\b",
-            "\\bprivate\\b", "\\bprotected\\b"
-        ]
+        self.keyword_format = fmt("#569CD6", bold=True)   # blue
+        self.constant_format = fmt("#4EC9B0")             # teal
+        self.builtin_format = fmt("#4FC1FF")              # soft blue
+        self.string_format = fmt("#CE9178")               # orange
+        self.number_format = fmt("#B5CEA8")               # light green
+        self.comment_format = fmt("#6A9955", italic=True)  # green
+        self.function_format = fmt("#DCDCAA")             # yellow
 
-        self.keyword_rules = [(QRegularExpression(kw), keyword_format) for kw in keywords]
-
-        # Strings
-        string_format = QTextCharFormat()
-        string_format.setForeground(QColor("#CE9178"))  # Orange
-
-        self.string_rules = [
-            (QRegularExpression('"[^"]*"'), string_format),
-            (QRegularExpression("'[^']*'"), string_format),
-            (QRegularExpression("`[^`]*`"), string_format),
-        ]
-
-        # Numbers
-        number_format = QTextCharFormat()
-        number_format.setForeground(QColor("#B5CEA8"))  # Green
-
-        self.number_rules = [
-            (QRegularExpression("\\b\\d+\\.?\\d*\\b"), number_format),
-            (QRegularExpression("\\b0x[0-9A-Fa-f]+\\b"), number_format),
-        ]
-
-        # Comments
-        comment_format = QTextCharFormat()
-        comment_format.setForeground(QColor("#6A9955"))  # Dark green
-        comment_format.setFontItalic(True)
-
-        self.comment_rules = [
-            (QRegularExpression("//[^\n]*"), comment_format),
-            (QRegularExpression("#[^\n]*"), comment_format),
-        ]
-
-        # Functions/Methods
-        function_format = QTextCharFormat()
-        function_format.setForeground(QColor("#DCDCAA"))  # Yellow
-        self.function_format = function_format
-
-        # Operators
-        operator_format = QTextCharFormat()
-        operator_format.setForeground(QColor("#D4D4D4"))  # Light gray
-        self.operator_format = operator_format
+        self.ident_re = QRegularExpression(r"[A-Za-z_][A-Za-z0-9_]*")
+        self.number_re = QRegularExpression(r"\b(0[xX][0-9A-Fa-f]+|\d+\.?\d*)\b")
+        self.func_re = QRegularExpression(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 
     def highlightBlock(self, text):
-        """Highlight a block of text."""
-        # Apply keyword rules
-        for pattern, format in self.keyword_rules:
-            iterator = pattern.globalMatch(text)
-            while iterator.hasNext():
-                match = iterator.next()
-                self.setFormat(match.capturedStart(), match.capturedLength(), format)
+        """Highlight one line, respecting string and comment boundaries.
 
-        # Apply string rules
-        for pattern, format in self.string_rules:
-            iterator = pattern.globalMatch(text)
-            while iterator.hasNext():
-                match = iterator.next()
-                self.setFormat(match.capturedStart(), match.capturedLength(), format)
+        A single left-to-right scan finds string spans and the comment start so
+        that code rules never recolor text inside a string or comment, and the
+        whole comment stays one color.
+        """
+        n = len(text)
+        string_spans = []      # (start, length)
+        comment_start = None
 
-        # Apply number rules
-        for pattern, format in self.number_rules:
-            iterator = pattern.globalMatch(text)
-            while iterator.hasNext():
-                match = iterator.next()
-                self.setFormat(match.capturedStart(), match.capturedLength(), format)
+        i = 0
+        while i < n:
+            ch = text[i]
+            if ch == '#' or (ch == '/' and i + 1 < n and text[i + 1] == '/'):
+                comment_start = i
+                break
+            if ch in ('"', "'", '`'):
+                quote = ch
+                j = i + 1
+                while j < n and text[j] != quote:
+                    j += 2 if text[j] == '\\' else 1
+                end = min(j + 1, n)
+                string_spans.append((i, end - i))
+                i = end
+                continue
+            i += 1
 
-        # Apply comment rules
-        for pattern, format in self.comment_rules:
-            iterator = pattern.globalMatch(text)
-            while iterator.hasNext():
-                match = iterator.next()
-                self.setFormat(match.capturedStart(), match.capturedLength(), format)
+        code_end = comment_start if comment_start is not None else n
 
-        # Highlight function/method names (pattern: word followed by parenthesis)
-        func_pattern = QRegularExpression("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(")
-        iterator = func_pattern.globalMatch(text)
-        while iterator.hasNext():
-            match = iterator.next()
-            self.setFormat(match.capturedStart(1), match.capturedLength(1), self.function_format)
+        def in_string(pos):
+            return any(s <= pos < s + l for s, l in string_spans)
+
+        # Numbers (code region only, not inside strings)
+        it = self.number_re.globalMatch(text)
+        while it.hasNext():
+            m = it.next()
+            s = m.capturedStart()
+            if s < code_end and not in_string(s):
+                self.setFormat(s, m.capturedLength(), self.number_format)
+
+        # Function/method names: word immediately before '('
+        it = self.func_re.globalMatch(text)
+        while it.hasNext():
+            m = it.next()
+            s = m.capturedStart(1)
+            if s < code_end and not in_string(s):
+                name = m.captured(1)
+                if name not in self.KEYWORDS:
+                    fmt = self.builtin_format if name in self.BUILTINS else self.function_format
+                    self.setFormat(s, m.capturedLength(1), fmt)
+
+        # Identifiers: keywords / constants / builtins
+        it = self.ident_re.globalMatch(text)
+        while it.hasNext():
+            m = it.next()
+            s = m.capturedStart()
+            if s >= code_end or in_string(s):
+                continue
+            word = m.captured()
+            if word in self.KEYWORDS:
+                self.setFormat(s, m.capturedLength(), self.keyword_format)
+            elif word in self.CONSTANTS:
+                self.setFormat(s, m.capturedLength(), self.constant_format)
+            elif word in self.BUILTINS:
+                self.setFormat(s, m.capturedLength(), self.builtin_format)
+
+        # Strings (overwrite anything the code rules touched)
+        for s, l in string_spans:
+            self.setFormat(s, l, self.string_format)
+
+        # Comment wins over everything, to end of line
+        if comment_start is not None:
+            self.setFormat(comment_start, n - comment_start, self.comment_format)
 
 
 class HarfBuzzShaper:
