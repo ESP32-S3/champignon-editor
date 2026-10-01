@@ -394,6 +394,20 @@ class ChamignionEditor(QMainWindow):
         self.editor.textChanged.connect(self._on_text_changed)
         splitter.addWidget(self.editor)
 
+        # Program input (stdin) panel
+        self.input_panel = QPlainTextEdit()
+        self.input_panel.setMaximumHeight(80)
+        self.input_panel.setPlaceholderText("Program input (stdin) — one line per input() call")
+        self.input_panel.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                font-family: Courier;
+                font-size: 10pt;
+            }
+        """)
+        splitter.addWidget(self.input_panel)
+
         # Output panel
         self.output_panel = QPlainTextEdit()
         self.output_panel.setReadOnly(True)
@@ -409,8 +423,9 @@ class ChamignionEditor(QMainWindow):
         self.output_panel.setPlainText("Output will appear here...\n")
         splitter.addWidget(self.output_panel)
 
-        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 1)
+        splitter.setStretchFactor(2, 2)
 
         layout.addWidget(splitter)
 
@@ -709,6 +724,7 @@ function test() {
                 ['python3', temp_file],
                 capture_output=True,
                 text=True,
+                input=self.input_panel.toPlainText(),
                 timeout=30
             )
 
@@ -736,6 +752,7 @@ function test() {
                 ['node', temp_file],
                 capture_output=True,
                 text=True,
+                input=self.input_panel.toPlainText(),
                 timeout=30
             )
 
@@ -767,7 +784,7 @@ function test() {
                 self.statusBar().showMessage("Compilation failed")
                 os.unlink(src_file)
                 return
-            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run([exe_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("C++ execution complete")
@@ -793,7 +810,7 @@ function test() {
                 self.output_panel.setPlainText(f"Compilation Error:\n{compile_result.stderr}\n")
                 os.unlink(src_file)
                 return
-            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run([exe_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("C execution complete")
@@ -819,7 +836,7 @@ function test() {
                 self.output_panel.setPlainText(f"Compilation Error:\n{compile_result.stderr}\n")
                 os.unlink(src_file)
                 return
-            result = subprocess.run([exe_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run([exe_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Rust execution complete")
@@ -839,7 +856,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.lua', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
-            result = subprocess.run(['lua', temp_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(['lua', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Lua execution complete")
@@ -857,7 +874,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.go', delete=False) as f:
                 f.write(code)
                 src_file = f.name
-            result = subprocess.run(['go', 'run', src_file], capture_output=True, text=True, timeout=10)
+            result = subprocess.run(['go', 'run', src_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Go execution complete")
@@ -875,7 +892,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.rb', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
-            result = subprocess.run(['ruby', temp_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(['ruby', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Ruby execution complete")
@@ -893,7 +910,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.php', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
-            result = subprocess.run(['php', temp_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(['php', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("PHP execution complete")
@@ -912,7 +929,7 @@ function test() {
                 f.write(code)
                 temp_file = f.name
             os.chmod(temp_file, 0o755)
-            result = subprocess.run(['bash', temp_file], capture_output=True, text=True, timeout=30)
+            result = subprocess.run(['bash', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Bash execution complete")
@@ -932,7 +949,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.swift', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
-            result = subprocess.run(['swift', temp_file], capture_output=True, text=True, timeout=10)
+            result = subprocess.run(['swift', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("Swift execution complete")
@@ -954,7 +971,7 @@ function test() {
             with tempfile.NamedTemporaryFile(mode='w', suffix='.ts', delete=False) as f:
                 f.write(code)
                 temp_file = f.name
-            result = subprocess.run(['npx', 'ts-node', temp_file], capture_output=True, text=True, timeout=10)
+            result = subprocess.run(['npx', 'ts-node', temp_file], capture_output=True, text=True, input=self.input_panel.toPlainText(), timeout=30)
             output = result.stdout + (f"\n[STDERR]\n{result.stderr}" if result.stderr else "")
             self.output_panel.setPlainText(output if output else "(No output)\n")
             self.statusBar().showMessage("TypeScript execution complete")
